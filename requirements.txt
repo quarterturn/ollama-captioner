@@ -1,0 +1,11 @@
+gradio
+uuid
+bitsandbytes
+accelerate
+transformers
+torch
+torchvision
+Pillow
+requests
+einops
+flash-attn
