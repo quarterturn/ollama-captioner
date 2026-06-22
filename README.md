@@ -1,10 +1,9 @@
 ---
 license: cc-by-nc-4.0
 ---
-Ollama image captioner
+Ollama image captioner v 2.0
 
-A simple python script which uses an Ollama API endpoint to engage a local language model which has vision capabilities, such as Gemma3 27B.
-I recommend Gemma3 27B because it follows instructions well, is able to read text within an image, and fits on consumer hardware like a 3090 with a reasonable quant.
+A simple python script which uses an Ollama API endpoint to engage a local language model which has vision capabilities, such as Qwen 3.6 35B A3B. It produces natural language captions in either plaintext or json format, and will classify images as SFW or NSFW. The prompt is designed to prevent the model from being vague about captioning NSFW material.
 
 Install:
 1. clone the repo
@@ -13,15 +12,14 @@ Install:
 4. install the dependencies via 'pip install -r requirements.txt'
 5. edit prompt.txt to your liking
 6. if ollama is not running on the same machine as where the script is ran, edit caption.py 'OLLAMA_API_URL = "http://localhost:11434/api/generate"' to whatever IP or hostname Ollama is running on
-7. edit caption.py 'model": "gemma3:27b-it-q8_0",' to match the vision-capable model you intend to use
-note:
-'ollama ls' will show you the available models:
-```
-$ ollama ls
-NAME                                    ID              SIZE     MODIFIED
-gemma3:27b-it-q8_0                      273cbcd67032    29 GB    2 days ago
-```
+7. edit caption.py 'model": "qwen3.6:35b-a3b-q8_0",' to match the vision-capable model you intend to use
 8. put the images to be captioned into 'images' in .png or .jpg format
 
-Creating a prompt:
-The example prompt.txt shows a format which works reliably for me, in terms of creating a caption suitable for a LoRA training dataset for natural language image and video models. You will need to adjust the prompt to your specific task, and you should definitely proofread the results of the script. I suggest using something like https://github.com/hassan-sd/manual-image-captioner to easily compare the caption to the image. Gemma3 27B does a good job, but it still sometimes parrots back the character guide descriptions or hallucinates.
+iUsage:
+    python caption.py [options] --input-dir ./images [--batch-dir batch_0001]
+
+Options:
+    --format txt|json       Output format (default: txt)
+    --batch-dir NAME        Process only this batch directory (default: all)
+    --resume                Resume from checkpoint (default: yes)
+    --limit N               Stop after N images (for testing)
