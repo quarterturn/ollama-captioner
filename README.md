@@ -15,7 +15,8 @@ Install:
 7. edit caption.py 'model": "qwen3.6:35b-a3b-q8_0",' to match the vision-capable model you intend to use
 8. put the images to be captioned into 'images' in .png or .jpg format
 
-iUsage:
+```
+Usage:
     python caption.py [options] --input-dir ./images [--batch-dir batch_0001]
 
 Options:
@@ -23,3 +24,4 @@ Options:
     --batch-dir NAME        Process only this batch directory (default: all)
     --resume                Resume from checkpoint (default: yes)
     --limit N               Stop after N images (for testing)
+```
