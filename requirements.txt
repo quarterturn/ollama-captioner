@@ -1,11 +1,7 @@
-gradio
-uuid
-bitsandbytes
-accelerate
-transformers
-torch
-torchvision
-Pillow
+certifi
+charset-normalizer
+idna
+pillow
+pip
 requests
-einops
-flash-attn
+urllib3
