@@ -3,7 +3,7 @@ license: cc-by-nc-4.0
 ---
 Ollama image captioner v 2.0
 
-A simple python script which uses an Ollama API endpoint to engage a local language model which has vision capabilities, such as Qwen 3.6 35B A3B. It produces natural language captions in either plaintext or json format, and will classify images as SFW or NSFW. The prompt is designed to prevent the model from being vague about captioning NSFW material.
+A simple python script which uses an Ollama API endpoint to engage a local language model which has vision capabilities, such as Qwen 3.6 35B A3B. It produces natural language captions in either plaintext or json format, and will classify images as SFW or NSFW. The prompt is designed to prevent the model from being vague about captioning NSFW material. The script tracks processed file in processed.json so you can cancel and resume where you left off, if needed.
 
 Install:
 1. clone the repo
