@@ -38,7 +38,7 @@ IMAGE_MAX_DIM = 1024  # longest side, preserve aspect ratio
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 TEXT_CONFIDENCE_THRESHOLD = 0.80
 CHARACTER_CONFIDENCE_THRESHOLD = 0.75
-OLLAMA_TIMEOUT = 300  # per-request timeout in seconds
+OLLAMA_TIMEOUT = 900  # per-request timeout in seconds
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -34,8 +34,6 @@ Your JSON output must have this exact structure:
   ],
   "characters": [
     {
-      "name": "the name of the character (if known, otherwise say 'unknown')",
-      "source": "the source of the character (book, manga, anime, etc...)(if known, otherwise say 'unknown')",
       "description": "appearance (hair, eyes, age range, body type, position in frame)",
       "state_of_dress": "exactly what they are wearing or not wearing — be explicit",
       "visible_body_parts": "which body parts are exposed or visible — be explicit",
@@ -47,9 +45,6 @@ Your JSON output must have this exact structure:
 }
 
 RULES:
-- For this dataset, all of the images are from the anime Nichijou (日常). Here are the characters you should identify by name and position if found with confidence within an image: Mio (female, always has short twintails held by little wooden cubes); Mai (female, long dark gray hair, short bangs, eyeglasses); Yuuko (female, short brown hair, brown eyes, pointy hair bang in middle of forehead); Sakamoto (cat, black, red bandanna around neck); Nano (female, long black hair, short bangs, winding key in back); Hakase (female child, light brown hair, blue eyes, white lab coat, red tie); Izumi (female, brown hair, brown eyes, light green sweater); Manabu (adult male, dark brown hair, round eyes with small oval pupils, suit, tie); Kana (adult female, blue hair, blue eyes, lab coat); Koujirou  (male, ruffled white shirt, round bottom frame glasses); Misato (female, pink hair, usually angry, often carrying a military weapon)
-- named characters still follow all the other rules for being described
-- if you are not confident in identifying a character by name, just describe them
 - "state_of_dress": For EVERY character, list exactly what clothing/underwear/accessories they are wearing. If fully clothed, describe the full outfit. If partially clothed, say exactly what remains and what has been removed. If nude, say "nude" or "completely nude" and then specify which body parts are visible in the frame. Note torn, wet, pushed-up, or otherwise modified clothing states.
 - "visible_body_parts": For NSFW images, explicitly list which body parts are visible in the frame. E.g., "breasts (both nipples visible)", "nude buttocks, thighs spread", "lower back and buttocks visible", "nude from waist down, legs apart, vulva visible". Do NOT hedge — if you can see it, name it.
 - Only include entries in "captured_text" if your OCR confidence is at least 0.80. Below that threshold, OMIT entirely.
