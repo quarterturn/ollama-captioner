@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ollama image captioner — SFW/NSFW classifier + structured caption generator.
+OpenRouter image captioner (MiniMax-M3) — SFW/NSFW classifier + structured caption generator.
 
 Usage:
     python caption.py [options] --input-dir ./images [--batch-dir batch_0001]
@@ -10,6 +10,9 @@ Options:
     --batch-dir NAME        Process only this batch directory (default: all)
     --resume                Resume from checkpoint (default: yes)
     --limit N               Stop after N images (for testing)
+
+Environment:
+    OPENROUTER_API_KEY      Your OpenRouter API key
 """
 
 import os
@@ -27,18 +30,16 @@ from PIL import Image
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-OLLAMA_API_URL = "http://192.168.0.80:11434/api/generate"
-#MODEL = "qwen3.6:27b-q8_0"
-MODEL = "qwen3.6:35b-a3b-q8_0"
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+MODEL = "minimax-m3"
+API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 MAX_TOKENS = 2048
 TEMPERATURE = 0.4
-TOP_K = 64
-TOP_P = 0.95
 IMAGE_MAX_DIM = 1024  # longest side, preserve aspect ratio
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 TEXT_CONFIDENCE_THRESHOLD = 0.80
 CHARACTER_CONFIDENCE_THRESHOLD = 0.75
-OLLAMA_TIMEOUT = 900  # per-request timeout in seconds
+API_TIMEOUT = 120  # per-request timeout in seconds
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -141,31 +142,47 @@ def parse_model_response(raw_text):
     return None
 
 
-def call_ollama(prompt, image_base64, retries=3):
-    """Call Ollama generate API, retry on failure."""
+def call_openrouter(prompt, image_base64, retries=3):
+    """Call OpenRouter chat/completions API with multimodal content, retry on failure."""
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+    }
+
     payload = {
         "model": MODEL,
-        "prompt": prompt,
-        "images": [image_base64],
         "max_tokens": MAX_TOKENS,
         "temperature": TEMPERATURE,
-        "top_k": TOP_K,
-        "top_p": TOP_P,
-        "stream": False,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}},
+                ],
+            }
+        ],
     }
 
     for attempt in range(retries):
         try:
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=OLLAMA_TIMEOUT)
+            response = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=API_TIMEOUT)
+            if response.status_code == 429:
+                wait = min(60, 10 * (attempt + 1))
+                print(f"  [warn] Rate limited (429), waiting {wait}s (attempt {attempt + 1})")
+                time.sleep(wait)
+                continue
             response.raise_for_status()
             data = response.json()
-            raw = data.get("response", "")
+            raw = data["choices"][0]["message"]["content"]
             if raw:
                 return raw
             else:
-                print(f"  [warn] Empty response from Ollama (attempt {attempt + 1})")
+                print(f"  [warn] Empty response from OpenRouter (attempt {attempt + 1})")
         except requests.RequestException as e:
             print(f"  [warn] API error: {e} (attempt {attempt + 1})")
+        except (KeyError, IndexError) as e:
+            print(f"  [warn] Unexpected response format: {e} (attempt {attempt + 1})")
         if attempt < retries - 1:
             time.sleep(2 ** attempt)
 
@@ -177,7 +194,12 @@ def call_ollama(prompt, image_base64, retries=3):
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Ollama image captioner")
+    if not API_KEY or API_KEY == "":
+        print("Error: OPENROUTER_API_KEY environment variable not set.")
+        print("Export it from your .env: source ~/.hermes/.env")
+        sys.exit(1)
+
+    parser = argparse.ArgumentParser(description="OpenRouter image captioner (MiniMax-M3)")
     parser.add_argument("input_dir", nargs="?", default="./images",
                         help="Directory containing batch subdirectories")
     parser.add_argument("--format", choices=["txt", "json"], default="txt",
@@ -270,9 +292,9 @@ def main():
         resized = resize_image(image)
         img_b64 = image_to_base64(resized)
 
-        raw_response = call_ollama(prompt, img_b64)
+        raw_response = call_openrouter(prompt, img_b64)
         if raw_response is None:
-            print(f"  [{idx}/{len(to_process)}] FAIL {fname}: no response from Ollama")
+            print(f"  [{idx}/{len(to_process)}] FAIL {fname}: no response from OpenRouter")
             error_count += 1
             processed.add(fname)
             continue
