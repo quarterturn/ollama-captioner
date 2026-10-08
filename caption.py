@@ -29,12 +29,13 @@ from PIL import Image
 # ---------------------------------------------------------------------------
 OLLAMA_API_URL = "http://192.168.0.80:11434/api/generate"
 #MODEL = "qwen3.6:27b-q8_0"
-MODEL = "qwen3.6:35b-a3b-q8_0"
-MAX_TOKENS = 2048
-TEMPERATURE = 0.4
+#MODEL = "qwen3.6:35b-a3b-q8_0"
+MODEL = "gemma4-31b-it:latest"
+MAX_TOKENS = 4096
+TEMPERATURE = 0.1
 TOP_K = 64
 TOP_P = 0.95
-IMAGE_MAX_DIM = 1024  # longest side, preserve aspect ratio
+IMAGE_MAX_DIM = 1920  # longest side, preserve aspect ratio
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 TEXT_CONFIDENCE_THRESHOLD = 0.80
 CHARACTER_CONFIDENCE_THRESHOLD = 0.75
