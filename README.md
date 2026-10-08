@@ -1,27 +1,35 @@
----
-license: cc-by-nc-4.0
----
-Ollama image captioner v 2.0
+# Ollama Image Captioner
 
-A simple python script which uses an Ollama API endpoint to engage a local language model which has vision capabilities, such as Qwen 3.6 35B A3B. It produces natural language captions in either plaintext or json format, and will classify images as SFW or NSFW. The prompt is designed to prevent the model from being vague about captioning NSFW material.
+This project provides tools for generating high-precision structured captions for anime datasets. It leverages vision-language models to create rich, natural-language descriptions for training modern image generation models.
 
-Install:
-1. clone the repo
-2. create a conda or python env for the project
-3. activate the env
-4. install the dependencies via 'pip install -r requirements.txt'
-5. edit prompt.txt to your liking
-6. if ollama is not running on the same machine as where the script is ran, edit caption.py 'OLLAMA_API_URL = "http://localhost:11434/api/generate"' to whatever IP or hostname Ollama is running on
-7. edit caption.py 'model": "qwen3.6:35b-a3b-q8_0",' to match the vision-capable model you intend to use
-8. put the images to be captioned into 'images' in .png or .jpg format
+## Guided Captioning Pipeline (`caption_guided.py`)
 
+The guided captioner is designed for high-precision identity grounding. Instead of relying on a model's general knowledge, it injects specific visual anchors from a grounding database into the prompt.
+
+### How it Works
+1. **Grounding:** It reads a SQLite database (e.g., from the `ccip_grounding` project) to identify which characters are present in an image.
+2. **Profile Injection:** It maps those characters to a `char_profiles.json` file containing specific visual traits (e.g., "mole under left eye").
+3. **Prompt Synthesis:** These traits are injected directly into the system prompt, forcing the model to verify specific physical markers before naming a character.
+4. **Structured Output:** The model outputs a single valid JSON object containing rating, mood, lighting, and detailed per-character descriptions.
+
+### Usage
+```bash
+python3 caption_guided.py \
+  --db "/path/to/mushoku_tensei_3.sql" \
+  --profiles "/path/to/char_profiles.json" \
+  --prompt "/path/to/prompt.txt" \
+  --input "/path/to/images" \
+  --output "/path/to/captions" \
+  --limit 10
 ```
-Usage:
-    python caption.py [options] --input-dir ./images [--batch-dir batch_0001]
 
-Options:
-    --format txt|json       Output format (default: txt)
-    --batch-dir NAME        Process only this batch directory (default: all)
-    --resume                Resume from checkpoint (default: yes)
-    --limit N               Stop after N images (for testing)
-```
+### Requirements
+- `pillow`: Image processing
+- `requests`: API communication with Ollama
+- `tqdm`: Progress tracking
+
+## Files
+- `caption_guided.py`: The main guided captioning script.
+- `char_profiles.json`: Visual trait database for target characters.
+- `prompt.txt`: The system instruction set for the vision model.
+- `requirements.txt`: Python dependencies.
