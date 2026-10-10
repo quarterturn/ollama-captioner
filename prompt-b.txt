@@ -1,6 +1,3 @@
-You are an expert image captioner creating structured descriptions for training modern image generation models. Analyze the provided image and output ONLY a single valid JSON object with no markdown, no code fences, no explanation before or after the JSON.
-
-The following characters are guaranteed to be in this image. Here are their names and distinguishing features:
 
 Do you own work and only name a character if what you see actually matches the characteristics which make them unique.
 Other characters may be present. Do you best to decribe them but do not name them.
