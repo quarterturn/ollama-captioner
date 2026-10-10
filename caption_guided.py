@@ -27,7 +27,7 @@ TEMPERATURE = 0.1
 OLLAMA_TIMEOUT = 900 
 
 # ---------------------------------------------------------------------------
-# JSON Validation & Cleaning (Borrowed from openrouter-image-captioner)
+# JSON Validation & Cleaning
 # ---------------------------------------------------------------------------
 VALID_RATINGS = {"sfw", "nsfw"}
 REQUIRED_TOP_FIELDS = ["rating", "medium", "subject_and_action", "style_description", "characters"]
@@ -98,12 +98,76 @@ def validate_caption_json(cap_json):
     return True, None
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Database & Helpers
 # ---------------------------------------------------------------------------
 def get_db_conn(db_path):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
+
+def db_init(conn):
+    """Initialize progress tracking tables and columns."""
+    try:
+        conn.execute("ALTER TABLE images ADD COLUMN is_captioned INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        # Column probably already exists
+        pass
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS captions (
+            filename TEXT PRIMARY KEY,
+            caption TEXT NOT NULL DEFAULT '',
+            rating TEXT DEFAULT '',
+            char_name TEXT DEFAULT '',
+            prompt_tokens INTEGER DEFAULT 0,
+            completion_tokens INTEGER DEFAULT 0,
+            model TEXT DEFAULT '',
+            status TEXT DEFAULT 'complete',
+            error_msg TEXT DEFAULT '',
+            created_at REAL DEFAULT (strftime('%s','now'))
+        )
+    """)
+    conn.commit()
+
+def save_result(conn, img_name, output, result, char_list):
+    """Save caption to DB and write .json file beside the original image."""
+    if isinstance(result, dict) and "error" in result:
+        status = "failed"
+        error_msg = result["error"][:200]
+        caption_text = ""
+        pt = ct = 0
+        model_used = MODEL
+        rating_val = ""
+    else:
+        cap_json = try_parse_caption_json(output)
+        if cap_json is None:
+            status = "failed"
+            error_msg = "Model returned non-parseable JSON"
+            caption_text = (output or "")[:200]
+            pt = ct = 0
+            model_used = MODEL
+            rating_val = ""
+        else:
+            status = "complete"
+            error_msg = ""
+            caption_text = json.dumps(cap_json, ensure_ascii=False, indent=2)
+            pt = result.get("prompt_tokens", 0) if isinstance(result, dict) else 0
+            ct = result.get("completion_tokens", 0) if isinstance(result, dict) else 0
+            model_used = MODEL
+            rating_val = cap_json.get("rating", "")
+
+    conn.execute("""
+        INSERT OR REPLACE INTO captions 
+        (filename, caption, rating, char_name, prompt_tokens, completion_tokens, model, status, error_msg, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+    """, (img_name, caption_text, rating_val, char_list or "", pt, ct, model_used, status, error_msg))
+
+    if status == "complete":
+        conn.execute("UPDATE images SET is_captioned=1 WHERE name=?", (img_name,))
+    
+    conn.commit()
+    return status == "complete"
 
 def load_profiles(profile_path):
     with open(profile_path, 'r', encoding='utf-8') as f:
@@ -154,21 +218,30 @@ def main():
         prompt_b = f.read()
 
     db_conn = get_db_conn(args.db)
+    db_init(db_conn)
+    
     if args.output:
         os.makedirs(args.output, exist_ok=True)
 
     try:
-        rows = db_conn.execute("SELECT name, path, characters FROM images").fetchall()
+        # Only fetch images that are not yet captioned
+        rows = db_conn.execute("SELECT name, path, characters FROM images WHERE is_captioned = 0").fetchall()
     except sqlite3.OperationalError as e:
         print(f"DB Error: {e}")
         return
 
+    total_to_process = len(rows)
     if args.limit > 0:
         rows = rows[:args.limit]
+        total_to_process = len(rows)
 
-    print(f"Processing {len(rows)} images with {MODEL}...")
+    print(f"Found {len(rows)} uncaptioned images to process (out of {total_to_process if args.limit == 0 else 'limited set'})...")
 
-    for row in tqdm(rows):
+    newly_captioned = 0
+    failed = 0
+
+    pbar = tqdm(rows, desc="Captioning")
+    for row in pbar:
         img_name = row['name']
         img_path = row['path']
         char_list = row['characters']
@@ -178,13 +251,14 @@ def main():
             names = [n.strip() for n in char_list.split(',') if n.strip()]
             for name in names:
                 desc = profiles.get(name, "No specific description available.")
-                injection += f"- **{name}**: {desc}\n"
+                injection += f"- **{name}**: {desc}\\n"
         else:
             injection = "No specific characters identified for this image."
 
-        final_prompt = f"{prompt_a}\n\n{injection}\n\n{prompt_b}"
+        final_prompt = f"{prompt_a}\\n\\n{injection}\\n\\n{prompt_b}"
 
         if not os.path.exists(img_path):
+            pbar.set_postfix({"status": f"Missing: {img_name}"})
             continue
             
         success = False
@@ -215,7 +289,10 @@ def main():
                         if img_path != img_dest:
                             shutil.copy2(img_path, img_dest)
                         
-                        success = True
+                        # Save progress to DB
+                        if save_result(db_conn, img_name, raw_output, {"prompt_tokens": 0, "completion_tokens": 0}, char_list):
+                            success = True
+                            newly_captioned += 1
                     else:
                         print(f"Validation fail for {img_name} (Attempt {attempts}): {reason}")
                 else:
@@ -223,9 +300,14 @@ def main():
         
         if not success:
             print(f"FAILED to get valid caption for {img_name} after {max_attempts} attempts.")
+            # Log the failure in the DB as well
+            save_result(db_conn, img_name, None, {"error": "Max retries reached or validation failed"}, char_list)
+            failed += 1
+            
+        pbar.set_postfix({"OK": newly_captioned, "Fail": failed})
 
     db_conn.close()
-    print("Done!")
+    print(f"\\nDone! Newly captioned: {newly_captioned}, Failed: {failed}")
 
 if __name__ == "__main__":
     main()
