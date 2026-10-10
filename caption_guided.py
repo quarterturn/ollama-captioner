@@ -12,6 +12,7 @@ import sqlite3
 import time
 import requests
 import re
+import shutil
 from pathlib import Path
 from PIL import Image
 from tqdm import tqdm
@@ -139,15 +140,18 @@ def main():
     parser = argparse.ArgumentParser(description=\"Guided Anime Captioner\")
     parser.add_argument(\"--db\", required=True, help=\"Path to the identity SQL database\")
     parser.add_argument(\"--profiles\", required=True, help=\"Path to char_profiles.json\")
-    parser.add_argument(\"--prompt\", required=True, help=\"Path to prompt.txt\")
+    parser.add_argument(\"--prompt-a\", required=True, help=\"Path to the first part of the prompt (prompt-a.txt)\")
+    parser.add_argument(\"--prompt-b\", required=True, help=\"Path to the second part of the prompt (prompt-b.txt)\")
     parser.add_argument(\"--input\", required=True, help=\"Input images directory\")
-    parser.add_argument(\"--output\", default=None, help=\"Optional: Directory to save captions. If omitted, saves beside images.\")
+    parser.add_argument(\"--output\", default=None, help=\"Optional: Directory to save captions and images. If omitted, saves beside original images.\")
     parser.add_argument(\"--limit\", type=int, default=0, help=\"Limit number of images\")
     args = parser.parse_args()
 
     profiles = load_profiles(args.profiles)
-    with open(args.prompt, 'r', encoding='utf-8') as f:
-        prompt_template = f.read()
+    with open(args.prompt_a, 'r', encoding='utf-8') as f:
+        prompt_a = f.read()
+    with open(args.prompt_b, 'r', encoding='utf-8') as f:
+        prompt_b = f.read()
 
     db_conn = get_db_conn(args.db)
     if args.output:
@@ -178,10 +182,7 @@ def main():
         else:
             injection = \"No specific characters identified for this image.\"
 
-        final_prompt = prompt_template.replace(
-            \"The following characters are guaranteed to be in this image. Here are their names and distinguishing features:\",
-            f\"The following characters are guaranteed to be in this image. Here are their names and distinguishing features:\\n\\n{injection}\"
-        )
+        final_prompt = f\"{prompt_a}\\n\\n{injection}\\n\\n{prompt_b}\"
 
         if not os.path.exists(img_path):
             continue
@@ -201,7 +202,6 @@ def main():
                 if cap_json:
                     valid, reason = validate_caption_json(cap_json)
                     if valid:
-                        # Determine output path: use provided output dir or the image's own directory
                         if args.output:
                             out_dir = args.output
                         else:
@@ -210,6 +210,11 @@ def main():
                         out_file = os.path.join(out_dir, f\"{os.path.splitext(img_name)[0]}.json\")
                         with open(out_file, 'w', encoding='utf-8') as f:
                             json.dump(cap_json, f, indent=2, ensure_ascii=False)
+                        
+                        img_dest = os.path.join(out_dir, img_name)
+                        if img_path != img_dest:
+                            shutil.copy2(img_path, img_dest)
+                        
                         success = True
                     else:
                         print(f\"Validation fail for {img_name} (Attempt {attempts}): {reason}\")
