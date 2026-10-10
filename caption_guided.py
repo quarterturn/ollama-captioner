@@ -225,7 +225,7 @@ def main():
 
     try:
         # Only fetch images that are not yet captioned
-        rows = db_conn.execute("SELECT name, path, characters FROM images WHERE is_captioned = 0").fetchall()
+        rows = db_conn.execute("SELECT name, path, characters FROM images WHERE is_captioned = 0 AND (characters IS NOT NULL AND characters != '')").fetchall()
     except sqlite3.OperationalError as e:
         print(f"DB Error: {e}")
         return
