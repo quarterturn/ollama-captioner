@@ -25,7 +25,7 @@ from tqdm import tqdm
 API_URL = os.environ.get("CAPTION_API_URL",
                          "http://192.168.0.80:8080/v1/chat/completions")
 MODEL = os.environ.get("CAPTION_MODEL", "qwen3.8-flash-next-unsloth-ud-iq4_xs")
-MAX_TOKENS = 4096
+MAX_TOKENS = 16384  # generous: beats any reasonable caption and caps runaway loops
 TEMPERATURE = 0.1
 API_TIMEOUT = 900
 
