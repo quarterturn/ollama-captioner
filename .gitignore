@@ -4,3 +4,4 @@
 input/
 output/
 processed.json
+.env

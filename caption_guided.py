@@ -20,11 +20,32 @@ from tqdm import tqdm
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-OLLAMA_API_URL = "http://192.168.0.80:11434/api/generate"
-MODEL = "gemma4-31b-it:latest"
+# Strata (llama.cpp OpenAI-compatible server). Same API server Rei runs on:
+# captioning shares the inference box instead of needing a separate Ollama.
+API_URL = os.environ.get("CAPTION_API_URL",
+                         "http://192.168.0.80:8080/v1/chat/completions")
+MODEL = os.environ.get("CAPTION_MODEL", "qwen3.8-flash-next-unsloth-ud-iq4_xs")
 MAX_TOKENS = 4096
 TEMPERATURE = 0.1
-OLLAMA_TIMEOUT = 900 
+API_TIMEOUT = 900
+
+def load_env(path=None):
+    """Minimal .env loader (stdlib only): KEY=value lines, # comments ok."""
+    if path is None:
+        path = Path(__file__).resolve().parent / ".env"
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+    except FileNotFoundError:
+        print(f"[warn] no .env at {path}; relying on environment")
+
+load_env()
+API_KEY = os.environ.get("API_KEY", "")
 
 # ---------------------------------------------------------------------------
 # JSON Validation & Cleaning
@@ -180,22 +201,37 @@ def image_to_base64(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
 
-def call_ollama(prompt, image_b64):
+def call_strata(prompt, image_b64, retries=2):
+    """OpenAI-compatible chat completion with an inline image (Strata server)."""
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+    }
     payload = {
         "model": MODEL,
-        "prompt": prompt,
-        "images": [image_b64],
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url",
+                 "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+            ],
+        }],
         "max_tokens": MAX_TOKENS,
         "temperature": TEMPERATURE,
-        "stream": False,
     }
-    try:
-        response = requests.post(OLLAMA_API_URL, json=payload, timeout=OLLAMA_TIMEOUT)
-        response.raise_for_status()
-        return response.json().get("response", "")
-    except Exception as e:
-        print(f"API Error: {e}")
-        return None
+    for attempt in range(retries):
+        try:
+            response = requests.post(API_URL, json=payload,
+                                     headers=headers, timeout=API_TIMEOUT)
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            print(f"API Error (attempt {attempt + 1}): {e}")
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)
+    return None
 
 # ---------------------------------------------------------------------------
 # Main Logic
@@ -269,7 +305,7 @@ def main():
         
         while attempts < max_attempts and not success:
             attempts += 1
-            raw_output = call_ollama(final_prompt, img_b64)
+            raw_output = call_strata(final_prompt, img_b64)
             
             if raw_output:
                 cap_json = try_parse_caption_json(raw_output)
