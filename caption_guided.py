@@ -226,7 +226,12 @@ def call_strata(prompt, image_b64, retries=2):
                                      headers=headers, timeout=API_TIMEOUT)
             response.raise_for_status()
             data = response.json()
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"]["content"]
+            usage = data.get("usage", {})
+            return content, {
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+            }
         except Exception as e:
             print(f"API Error (attempt {attempt + 1}): {e}")
             if attempt < retries - 1:
@@ -260,8 +265,14 @@ def main():
         os.makedirs(args.output, exist_ok=True)
 
     try:
-        # Only fetch images that are not yet captioned
-        rows = db_conn.execute("SELECT name, path, characters FROM images WHERE is_captioned = 0 AND (characters IS NOT NULL AND characters != '')").fetchall()
+        # v2 schema: the image_tags join IS the manifest (images with >=1 tag).
+        # Only fetch images that are not yet captioned.
+        rows = db_conn.execute("""
+            SELECT i.name, i.path, GROUP_CONCAT(t.char) AS characters
+            FROM images i JOIN image_tags t ON t.path = i.path
+            WHERE i.is_captioned = 0
+            GROUP BY i.path, i.name, i.is_captioned
+        """).fetchall()
     except sqlite3.OperationalError as e:
         print(f"DB Error: {e}")
         return
@@ -305,7 +316,9 @@ def main():
         
         while attempts < max_attempts and not success:
             attempts += 1
-            raw_output = call_strata(final_prompt, img_b64)
+            result = call_strata(final_prompt, img_b64)
+            raw_output = result[0] if isinstance(result, tuple) else None
+            usage = result[1] if isinstance(result, tuple) else {}
             
             if raw_output:
                 cap_json = try_parse_caption_json(raw_output)
@@ -326,7 +339,7 @@ def main():
                             shutil.copy2(img_path, img_dest)
                         
                         # Save progress to DB
-                        if save_result(db_conn, img_name, raw_output, {"prompt_tokens": 0, "completion_tokens": 0}, char_list):
+                        if save_result(db_conn, img_name, raw_output, usage, char_list):
                             success = True
                             newly_captioned += 1
                     else:
