@@ -29,6 +29,7 @@ Your JSON output must have this exact structure:
   "captured_text": [
     {"text": "the exact text", "language": "en/ja/ko/...", "confidence": 0.95}
   ],
+  "overlay_credits": false,
   "characters": [
     {
       "name": "character name if identifiable, or the string unknown",
@@ -42,6 +43,7 @@ Your JSON output must have this exact structure:
 }
 
 RULES:
+- "overlay_credits": true ONLY if the frame contains staff-credit, eyecatch, or preview-card OVERLAY text — typeset role/staff names (e.g. a job title above 2+ personal names), director/cast lists, or episode-card text composited flatly over the picture, in any orientation or size. Environmental/in-scene writing (shop signs, product labels, wall posters, screens in the world) is NOT credits — keep false for those. When uncertain, prefer true for anything that looks like a production credit roll.
 - "state_of_dress": For EVERY character, list exactly what clothing/underwear/accessories they are wearing. If fully clothed, describe the full outfit. If partially clothed, say exactly what remains and what has been removed. If nude, say "nude" or "completely nude" and then specify which body parts are visible in the frame. Note torn, wet, pushed-up, or otherwise modified clothing states.
 - "name": If the character can be identified with confidence from the distinctive features list above, provide the character name, otherwise "unknown".
 - Only include entries in "captured_text" if your OCR confidence is at least 0.80. Below that threshold, OMIT entirely.
